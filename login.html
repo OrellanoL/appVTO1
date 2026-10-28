@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Interno de Merma - Carrefour Express</title>
+    <!-- Tailwind CSS para diseño moderno y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Tarjeta Principal de Login -->
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+        
+        <!-- Encabezado con Estética Carrefour Express -->
+        <div class="bg-gradient-to-r from-blue-900 to-blue-800 p-6 text-center text-white">
+            <div class="inline-block bg-red-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest mb-2 shadow">
+                Carrefour Express
+            </div>
+            <h1 class="text-xl font-extrabold tracking-tight uppercase">Control Interno de Merma</h1>
+            <p class="text-xs text-blue-200 mt-1">Gestión de Vencimientos y Stock por Sucursal</p>
+        </div>
+
+        <!-- Formulario -->
+        <div class="p-8 space-y-6">
+            <div id="errorMsg" class="hidden bg-red-50 border-l-4 border-red-500 text-red-700 p-3 rounded text-sm font-medium"></div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Usuario de Tienda</label>
+                <input type="text" id="userInput" placeholder="Ej: tienda_429" 
+                    class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:outline-none text-slate-800 font-medium placeholder-slate-400 text-sm transition">
+                <span class="text-[11px] text-slate-400 mt-1 block">Formato: tienda_ seguido del número (ej. tienda_429)</span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Contraseña de Sucursal</label>
+                <input type="password" id="passInput" placeholder="••••••••" 
+                    class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:outline-none text-slate-800 font-medium text-sm transition">
+            </div>
+
+            <button onclick="handleLogin()" 
+                class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 rounded-lg shadow-lg hover:shadow-xl transition duration-200 uppercase tracking-wider text-sm flex items-center justify-center space-x-2">
+                <span>Ingresar al Sistema</span>
+            </button>
+        </div>
+        
+        <!-- Pie de tarjeta -->
+        <div class="bg-slate-50 px-8 py-4 border-t border-slate-100 text-center">
+            <p class="text-xs text-slate-500">Zona 1 — Operaciones de Control de Vtos</p>
+        </div>
+    </div>
+
+    <!-- Script de Conexión y Lógica -->
+    <script>
+        // CONFIGURÁ TUS CREDENCIALES DE SUPABASE ACÁ
+        const SUPABASE_URL = 'https://dofeahjuerqgjyxhnmdm.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ArCel3W6N_-D0QZG10MlgA_jM2IcnuH'; // Poné acá toda tu clave completa
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Luego de consultar la tabla de usuarios y verificar que el DNI y PIN son correctos:
+const usuario = data[0]; // Datos devueltos por Supabase
+
+// Guardamos el nombre y apellido en el localStorage
+localStorage.setItem('repositorNombre', usuario.nombre_apellido || usuario.nombre);
+localStorage.setItem('repositorDni', usuario.dni);
+
+// Redirigimos a vencimientos.html
+window.location.href = 'vencimientos.html';
+
+        async function handleLogin() {
+            const userInput = document.getElementById('userInput').value.trim().toLowerCase();
+            const password = document.getElementById('passInput').value.trim();
+            const errorDiv = document.getElementById('errorMsg');
+
+            errorDiv.classList.add('hidden');
+
+            if (!userInput || !password) {
+                mostrarError('Por favor, completa ambos campos.');
+                return;
+            }
+
+            // CASO 1: Ingresa un Administrador/Jefe (comienza estrictamente con "tienda_")
+            if (userInput.startsWith('tienda_')) {
+                const codigoSucursal = userInput.replace('tienda_', '').trim();
+
+                const { data: tienda, error } = await supabaseClient
+                    .from('tiendas')
+                    .select('*')
+                    .eq('codigo_sucursal', codigoSucursal)
+                    .single();
+
+                if (error || !tienda) {
+                    mostrarError('La sucursal especificada no existe en la base de datos.');
+                    return;
+                }
+
+                const storedPassword = tienda.password || 'carrefour2026';
+                if (password !== storedPassword) {
+                    mostrarError('Contraseña incorrecta para esta sucursal.');
+                    return;
+                }
+
+                // Guardar sesión de Admin y forzar redirección a admin.html
+                localStorage.setItem('tienda_id', tienda.id);
+                localStorage.setItem('codigo_sucursal', tienda.codigo_sucursal);
+                localStorage.setItem('nombre_sucursal', tienda.nombre_sucursal);
+                localStorage.setItem('rol', 'admin');
+
+                window.location.href = 'admin.html';
+                return; // Cortamos la ejecución acá para que no siga buscando como repositor
+            }
+
+            // CASO 2: Ingresa un Repositor (usando su DNI)
+            const { data: repositor, error: repoError } = await supabaseClient
+                .from('usuarios_tienda')
+                .select('*, tiendas(*)')
+                .eq('dni', userInput)
+                .single();
+
+            if (repoError || !repositor) {
+                mostrarError('DNI no encontrado o usuario inválido.');
+                return;
+            }
+
+            if (!repositor.activo) {
+                mostrarError('Este usuario se encuentra inactivo en esta sucursal.');
+                return;
+            }
+
+            if (password !== repositor.pin) {
+                mostrarError('PIN incorrecto.');
+                return;
+            }
+
+            // Guardar sesión del Repositor y redirigir a vencimientos.html
+            localStorage.setItem('tienda_id', repositor.tienda_id);
+            localStorage.setItem('codigo_sucursal', repositor.tiendas.codigo_sucursal);
+            localStorage.setItem('nombre_sucursal', repositor.tiendas.nombre_sucursal);
+            localStorage.setItem('repositor_nombre', `${repositor.nombre} ${repositor.apellido}`);
+            localStorage.setItem('rol', 'repositor');
+
+            window.location.href = 'vencimientos.html';
+        }
+
+        function mostrarError(mensaje) {
+            const errorDiv = document.getElementById('errorMsg');
+            errorDiv.textContent = mensaje;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

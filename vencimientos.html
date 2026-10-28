@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Panel Repositor - Control de Vencimientos</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #0b0f19; margin: 0; padding: 0 0 70px 0; color: #f3f4f6; }
+
+        .app-bar { background: #111827; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #1f2937; position: sticky; top: 0; z-index: 10; }
+        .app-bar-left { display: flex; align-items: center; gap: 10px; }
+        .app-bar-title { font-size: 16px; font-weight: 600; color: #f3f4f6; }
+        .user-badge { font-size: 11px; background: #1f2937; color: #fbbf24; border: 1px solid #374151; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+
+        .tab-container { display: flex; background: #111827; border-bottom: 1px solid #1f2937; position: sticky; top: 56px; z-index: 9; }
+        .tab-btn { flex: 1; padding: 12px 0; text-align: center; font-size: 13px; font-weight: 700; color: #9ca3af; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { color: #fbbf24; border-bottom: 2px solid #fbbf24; background: #1f2937; }
+
+        .tab-content { display: none; padding: 20px 16px; max-width: 500px; margin: 0 auto; }
+        .tab-content.active { display: block; }
+
+        .form-section-title { font-size: 16px; font-weight: 700; color: #f3f4f6; margin-bottom: 4px; text-transform: uppercase; }
+        .form-section-subtitle { font-size: 12px; color: #9ca3af; margin-bottom: 20px; }
+
+        .field-group { margin-bottom: 20px; }
+        .field-label { font-size: 11px; font-weight: 700; color: #9ca3af; letter-spacing: 0.8px; margin-bottom: 8px; text-transform: uppercase; }
+        .required { color: #f59e0b; font-weight: bold; margin-left: 2px; }
+
+        .input-wrapper { position: relative; display: flex; align-items: center; }
+        .form-input { width: 100%; height: 48px; border: 1px solid #374151; border-radius: 8px; padding: 0 14px; font-size: 15px; color: #f3f4f6; background: #111827; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: #f59e0b; }
+        .form-input[readonly] { background-color: #1f2937; color: #9ca3af; }
+
+        .input-icon-btn { position: absolute; right: 10px; background: transparent; border: none; font-size: 18px; color: #9ca3af; cursor: pointer; padding: 8px; }
+
+        .stepper-wrapper { display: flex; align-items: center; border: 1px solid #374151; border-radius: 8px; height: 48px; background: #111827; overflow: hidden; }
+        .stepper-btn { width: 56px; height: 100%; background: transparent; border: none; font-size: 20px; color: #9ca3af; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .stepper-input { flex: 1; border: none; text-align: center; font-size: 16px; font-weight: 600; color: #f3f4f6; outline: none; background: transparent; }
+
+        .select-trigger { width: 100%; height: 48px; border: 1px solid #374151; border-radius: 8px; padding: 0 14px; font-size: 15px; color: #f3f4f6; background: #111827; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+
+        .lote-card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .lote-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .lote-desc { font-weight: 700; font-size: 14px; color: #f3f4f6; }
+        .lote-ean { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+        .lote-badge-vto { font-size: 11px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 6px; font-weight: bold; white-space: nowrap; }
+        
+        .lote-card-body { display: flex; justify-content: space-between; font-size: 12px; color: #d1d5db; border-top: 1px solid #1f2937; padding-top: 8px; margin-top: 4px; }
+        .lote-card-actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+        .btn-card-action { flex: 1; min-width: 70px; padding: 8px; background: #1f2937; border: 1px solid #374151; color: #f3f4f6; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+        .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: #111827; border-top: 1px solid #1f2937; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; max-width: 500px; margin: 0 auto; z-index: 50; }
+        .btn-cancel { background: transparent; border: none; font-size: 15px; font-weight: 600; color: #f3f4f6; cursor: pointer; }
+        .btn-save { background: #fbbf24; border: none; font-size: 15px; font-weight: 700; color: #111827; padding: 10px 24px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+        .modal-card { background: #111827; border: 1px solid #374151; width: 100%; max-width: 420px; border-radius: 12px; max-height: 85vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 16px 20px; font-size: 15px; font-weight: 700; color: #f3f4f6; border-bottom: 1px solid #1f2937; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 14px 20px; text-align: right; border-top: 1px solid #1f2937; display: flex; justify-content: flex-end; gap: 10px; }
+
+        .bitacora-item { background: #0b0f19; border: 1px solid #1f2937; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; }
+        .bitacora-header { display: flex; justify-content: space-between; color: #9ca3af; margin-bottom: 4px; font-size: 11px; }
+        .bitacora-text { color: #f3f4f6; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <div class="app-bar">
+        <div class="app-bar-left">
+            <span class="app-bar-title">🛒 Carrefour Express</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="user-badge" id="userBadge">Ludmila Orellano</div>
+            <button onclick="cerrarSesion()" style="background: #1f2937; color: #ef4444; border: 1px solid #374151; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;">⎋ Salir</button>
+        </div>
+    </div>
+
+    <div class="tab-container">
+        <button class="tab-btn active" id="tabBtnForm" onclick="cambiarTab('form')">➕ NUEVO VENCIMIENTO</button>
+        <button class="tab-btn" id="tabBtnCargas" onclick="cambiarTab('cargas')">📋 MIS CARGAS (<span id="cantCargasCount">0</span>)</button>
+    </div>
+
+    <div id="tabFormContent" class="tab-content active">
+        <div class="form-section-title">Datos del Registro</div>
+        <div class="form-section-subtitle">Complete la información obligatoria (*)</div>
+        
+        <div class="field-group">
+            <div class="field-label">EAN <span class="required">*</span></div>
+            <div class="input-wrapper">
+                <input type="text" id="eanInput" class="form-input" placeholder="Ingrese o escanee el código EAN..." onchange="buscarDescripcionPorEan()" onkeydown="if(event.key==='Enter'){buscarDescripcionPorEan();}">
+                <button class="input-icon-btn" onclick="abrirCamaraScanner()">📷</button>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Descripcion <span class="required">*</span></div>
+            <input type="text" id="descInput" class="form-input" placeholder="Descripción o detalle del producto" readonly>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Fecha de Vto <span class="required">*</span></div>
+            <div class="input-wrapper">
+                <input type="date" id="fechaVtoInput" class="form-input">
+            </div>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Unidades <span class="required">*</span></div>
+            <div class="stepper-wrapper">
+                <button class="stepper-btn" onclick="cambiarUnidades(-1)">−</button>
+                <input type="number" id="unidadesInput" class="stepper-input" value="1" min="1">
+                <button class="stepper-btn" onclick="cambiarUnidades(1)">+</button>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Accion Realizada <span class="required">*</span></div>
+            <div class="select-trigger" onclick="abrirModalAcciones()">
+                <span id="selectedAccionText" style="color: #9ca3af;">Seleccionar...</span>
+                <span style="color: #9ca3af; font-size: 11px;">▼</span>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Registrado Por <span class="required">*</span></div>
+            <input type="text" id="registradoPorInput" class="form-input" readonly>
+        </div>
+
+        <div class="field-group">
+            <div class="field-label">Fotografía del Lote <span style="color: #9ca3af; font-weight: normal;">(opcional)</span></div>
+            <input type="file" id="fotoLoteRepo" accept="image/*" style="display: none;" onchange="manejarArchivoSeleccionado(this)">
+            <div style="display: flex; gap: 12px; margin-bottom: 8px;">
+                <button type="button" onclick="document.getElementById('fotoLoteRepo').click();" style="flex: 1; background-color: #0284c7; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">📁 Archivo</button>
+                <button type="button" onclick="abrirCamaraDirecta()" style="flex: 1; background-color: #9333ea; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">📷 Cámara</button>
+            </div>
+            <span id="textoArchivoSeleccionado" style="font-size: 12px; color: #9ca3af; display: block; text-align: center;">Ningún archivo seleccionado</span>
+        </div>
+    </div>
+
+    <div id="tabCargasContent" class="tab-content">
+        <div class="form-section-title">Productos Cargados</div>
+        <div class="form-section-subtitle">Vencimientos que registraste en este turno</div>
+        <div id="listaMisCargas">
+            <div style="text-align: center; color: #9ca3af; padding: 30px;">Cargando tus registros...</div>
+        </div>
+    </div>
+
+    <div class="bottom-bar" id="bottomBarSave">
+        <button class="btn-cancel" onclick="limpiarFormulario()">Cancel</button>
+        <button class="btn-save" onclick="guardarRegistro()">Save ✓</button>
+    </div>
+
+    <div class="modal-overlay" id="modalBitacora">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span>📝 Bitácora del Lote</span>
+                <span onclick="cerrarModalBitacora()" style="cursor: pointer; font-size: 18px;">✕</span>
+            </div>
+            <div class="modal-body">
+                <div id="historialBitacora" style="margin-bottom: 16px;"></div>
+                <div class="field-label">Nueva Nota / Observación</div>
+                <textarea id="nuevaNotaInput" class="form-input" style="height: 80px; padding: 10px; resize: none;" placeholder="Ej: Se rotó el producto..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="cerrarModalBitacora()" style="background: transparent; border: 1px solid #374151; color: #f3f4f6; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cancelar</button>
+                <button type="button" onclick="guardarNotaBitacora()" style="background: #fbbf24; border: none; color: #111827; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">Guardar Nota</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalAcciones">
+        <div class="modal-card">
+            <div class="modal-header">Accion Realizada</div>
+            <div style="padding: 12px 20px;"><input type="text" id="searchAccion" class="form-input" placeholder="Buscar acción..." oninput="filtrarAcciones()"></div>
+            <div class="modal-body" id="accionesList"></div>
+            <div class="modal-footer"><button class="btn-save" style="padding: 6px 16px;" onclick="cerrarModalAcciones()">Done</button></div>
+        </div>
+    </div>
+
+    <div id="modalCamara" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 300; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <video id="videoCamara" autoplay playsinline style="width: 100%; max-width: 400px; border-radius: 8px; background: #000;"></video>
+        <canvas id="canvasCamara" style="display: none;"></canvas>
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button type="button" onclick="sacarFotoModal()" style="background: #16a34a; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">📸 Capturar</button>
+            <button type="button" onclick="cerrarCamaraDirecta()" style="background: #dc2626; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">✕ Cancelar</button>
+        </div>
+    </div>
+
+    <div id="scannerModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <div id="reader" style="width: 100%; max-width: 360px; background: #fff; border-radius: 8px; overflow: hidden;"></div>
+        <button onclick="cerrarCamaraScanner()" style="margin-top: 15px; background: #1f2937; color: #f3f4f6; border: 1px solid #374151; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">Cerrar Cámara</button>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://dofeahjuerqgjyxhnmdm.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ArCel3W6N_-D0QZG10MlgA_jM2IcnuH';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let tiendaIdGlobal = null;
+        let html5QrCode = null;
+        let selectedAccionValue = "SIN ACCIONAR";
+        let streamCamara = null;
+        let loteSeleccionadoBitacoraId = null;
+        let loteEditandoId = null;
+
+        const listaAcciones = [
+            "SIN ACCIONAR", "Cargado en FORMULARIO P.A.S", "Cargado en ULTIMA MILLA",
+            "Cargado en PCH", "Cargado en FORM de ACCIONES ESPECIALES", "Cargado en FORM de PFT",
+            "Cargado en FORM CARNES", "Cargado para DONACIÓN", "Uso de CUPONES", "PEDIDO DE TRANSFERENCIA"
+        ];
+
+        async function init() {
+            document.getElementById('userBadge').textContent = "Conectando...";
+
+            const { data: tienda, error } = await supabaseClient.from('tiendas').select('id').eq('codigo_sucursal', '429').single();
+            
+            if (error || !tienda) {
+                alert("No se pudo vincular la sucursal 429.");
+                return;
+            }
+
+            tiendaIdGlobal = tienda.id;
+            renderAcciones(listaAcciones);
+
+            // Recuperación limpia y robusta del nombre del repositor (sin romper nada)
+            const nombreRepositor = localStorage.getItem('repositor_nombre') || localStorage.getItem('repositorNombre') || localStorage.getItem('nombre') || 'Ludmila Orellano';
+            document.getElementById('registradoPorInput').value = nombreRepositor;
+            document.getElementById('userBadge').textContent = nombreRepositor;
+
+            cargarMisCargas();
+        }
+
+        function cambiarTab(tab) {
+            document.getElementById('tabBtnForm').classList.toggle('active', tab === 'form');
+            document.getElementById('tabBtnCargas').classList.toggle('active', tab === 'cargas');
+            document.getElementById('tabFormContent').classList.toggle('active', tab === 'form');
+            document.getElementById('tabCargasContent').classList.toggle('active', tab === 'cargas');
+            document.getElementById('bottomBarSave').style.display = (tab === 'form') ? 'flex' : 'none';
+
+            if (tab === 'cargas') cargarMisCargas();
+        }
+
+        async function cargarMisCargas() {
+            const container = document.getElementById('listaMisCargas');
+            const usuarioLogueado = document.getElementById('registradoPorInput').value;
+
+            const { data: lotes, error } = await supabaseClient
+                .from('lotes_vencimientos')
+                .select('*, productos(descripcion)')
+                .eq('creado_por', usuarioLogueado)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div style="color: #ef4444; text-align: center; padding: 20px;">Error al cargar productos: ${error.message}</div>`;
+                return;
+            }
+
+            document.getElementById('cantCargasCount').textContent = lotes.length;
+
+            if (lotes.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 30px;">Aún no registraste productos en este turno.</div>`;
+                return;
+            }
+
+            container.innerHTML = lotes.map(lote => {
+                const desc = lote.productos ? lote.productos.descripcion : 'Producto en catálogo';
+                const fechaVto = lote.fecha_vencimiento ? lote.fecha_vencimiento.split('-').reverse().join('/') : 'Sin fecha';
+                
+                return `
+                    <div class="lote-card">
+                        <div class="lote-card-header">
+                            <div>
+                                <div class="lote-desc">${desc}</div>
+                                <div class="lote-ean">EAN: ${lote.codigo_ean}</div>
+                            </div>
+                            <div class="lote-badge-vto">Vto: ${fechaVto}</div>
+                        </div>
+                        <div class="lote-card-body">
+                            <span>Unidades: <strong>${lote.cantidad_unidades}</strong></span>
+                            <span>Acción: <strong>${lote.accion_realizada}</strong></span>
+                        </div>
+                        <div class="lote-card-actions">
+                            <button class="btn-card-action" onclick="abrirModalBitacora('${lote.id}')">📝 Notas</button>
+                            <button class="btn-card-action" style="background-color: #0369a1;" onclick="abrirEditarLote('${lote.id}', '${lote.codigo_ean}', '${lote.fecha_vencimiento}', ${lote.cantidad_unidades}, '${lote.accion_realizada}')">✏️ Editar</button>
+                            <button class="btn-card-action" style="background-color: #991b1b;" onclick="eliminarLote('${lote.id}')">🗑️ Borrar</button>
+                            ${lote.foto_url ? `<a href="${lote.foto_url}" target="_blank" class="btn-card-action" style="text-decoration:none;">🖼️ Foto</a>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function abrirEditarLote(id, ean, fecha, unidades, accion) {
+            loteEditandoId = id;
+            document.getElementById('eanInput').value = ean;
+            document.getElementById('fechaVtoInput').value = fecha;
+            document.getElementById('unidadesInput').value = unidades;
+            selectedAccionValue = accion;
+            document.getElementById('selectedAccionText').textContent = accion;
+            buscarDescripcionPorEan();
+            cambiarTab('form');
+            const btnSave = document.querySelector('.btn-save');
+            if (btnSave) btnSave.textContent = "Update ✓";
+        }
+
+        async function abrirModalBitacora(loteId) {
+            loteSeleccionadoBitacoraId = loteId;
+            document.getElementById('modalBitacora').style.display = 'flex';
+            document.getElementById('nuevaNotaInput').value = '';
+
+            const container = document.getElementById('historialBitacora');
+            container.innerHTML = 'Cargando historial...';
+
+            const { data: lote } = await supabaseClient
+                .from('lotes_vencimientos')
+                .select('bitacora_observaciones')
+                .eq('id', loteId)
+                .single();
+
+            const bitacora = lote && lote.bitacora_observaciones ? lote.bitacora_observaciones : [];
+
+            if (bitacora.length === 0) {
+                container.innerHTML = '<div style="color: #9ca3af; font-size: 12px; text-align: center;">Sin notas anteriores.</div>';
+            } else {
+                container.innerHTML = bitacora.map(item => `
+                    <div class="bitacora-item">
+                        <div class="bitacora-header">
+                            <strong>${item.autor || 'Repositor'}</strong>
+                            <span>${item.fechaHora || ''}</span>
+                        </div>
+                        <div class="bitacora-text">${item.nota}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function cerrarModalBitacora() {
+            document.getElementById('modalBitacora').style.display = 'none';
+            loteSeleccionadoBitacoraId = null;
+        }
+
+        async function guardarNotaBitacora() {
+            const nota = document.getElementById('nuevaNotaInput').value.trim();
+            const usuarioLogueado = document.getElementById('registradoPorInput').value;
+
+            if (!nota) {
+                alert('Escribí una nota antes de guardar');
+                return;
+            }
+
+            const { data: lote } = await supabaseClient
+                .from('lotes_vencimientos')
+                .select('bitacora_observaciones')
+                .eq('id', loteSeleccionadoBitacoraId)
+                .single();
+
+            let bitacora = lote && lote.bitacora_observaciones ? lote.bitacora_observaciones : [];
+            const ahora = new Date();
+            const fechaHoraStr = ahora.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            bitacora.push({ fechaHora: fechaHoraStr, autor: usuarioLogueado, nota: nota });
+
+            const { error } = await supabaseClient
+                .from('lotes_vencimientos')
+                .update({ bitacora_observaciones: bitacora })
+                .eq('id', loteSeleccionadoBitacoraId);
+
+            if (error) {
+                alert('Error al guardar nota: ' + error.message);
+            } else {
+                cerrarModalBitacora();
+                cargarMisCargas();
+            }
+        }
+
+        function cambiarUnidades(delta) {
+            const input = document.getElementById('unidadesInput');
+            let val = parseInt(input.value) || 1;
+            input.value = Math.max(1, val + delta);
+        }
+
+        function manejarArchivoSeleccionado(input) {
+            const textoSpan = document.getElementById('textoArchivoSeleccionado');
+            if (input.files && input.files.length > 0) {
+                textoSpan.textContent = `✔ Seleccionado: ${input.files[0].name}`;
+                textoSpan.style.color = '#10b981';
+            } else {
+                textoSpan.textContent = 'Ningún archivo seleccionado';
+                textoSpan.style.color = '#9ca3af';
+            }
+        }
+
+        async function buscarDescripcionPorEan() {
+            const eanInput = document.getElementById('eanInput').value.trim();
+            const descInput = document.getElementById('descInput');
+            if (!eanInput) return;
+
+            const { data: productos } = await supabaseClient.from('productos').select('descripcion').eq('codigo_ean', eanInput);
+            if (productos && productos.length > 0) {
+                descInput.value = productos[0].descripcion;
+            } else {
+                alert(`El EAN ${eanInput} no se encuentra en el catálogo.`);
+                descInput.value = '';
+            }
+        }
+
+        async function guardarRegistro() {
+            if (!tiendaIdGlobal) {
+                alert('Espera un momento a que termine de cargar la sucursal.');
+                return;
+            }
+
+            const ean = document.getElementById('eanInput').value.trim();
+            const fechaInputRaw = document.getElementById('fechaVtoInput').value;
+            const unidades = parseInt(document.getElementById('unidadesInput').value) || 1;
+            const usuarioLogueado = document.getElementById('registradoPorInput').value;
+            const fotoInput = document.getElementById('fotoLoteRepo');
+
+            if (!ean || !fechaInputRaw) {
+                alert('Completá los campos obligatorios (*). Falta el EAN o la Fecha de Vto.');
+                return;
+            }
+
+            let fecha = fechaInputRaw;
+            if (fecha.includes('/')) {
+                const partes = fecha.split('/');
+                if (partes.length === 3) fecha = `${partes[2]}-${partes[1]}-${partes[0]}`;
+            }
+
+            let fotoUrl = null;
+            if (fotoInput.files.length > 0) {
+                const archivo = fotoInput.files[0];
+                const nombreArchivo = `${tiendaIdGlobal}_${Date.now()}_${archivo.name}`;
+                const { error: uploadError } = await supabaseClient.storage.from('fotos_lotes').upload(nombreArchivo, archivo);
+                if (!uploadError) {
+                    fotoUrl = supabaseClient.storage.from('fotos_lotes').getPublicUrl(nombreArchivo).data.publicUrl;
+                }
+            }
+
+            let productoId = null;
+            const { data: prods } = await supabaseClient.from('productos').select('id').eq('codigo_ean', ean).limit(1);
+            if (prods && prods.length > 0) productoId = prods[0].id;
+
+            const ahora = new Date();
+            const fechaHoraStr = ahora.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const fechaFormateada = fecha.split('-').reverse().join('/');
+
+            let resultado;
+            if (loteEditandoId) {
+                const { data: loteActual } = await supabaseClient.from('lotes_vencimientos').select('bitacora_observaciones').eq('id', loteEditandoId).single();
+                let bitacora = loteActual && loteActual.bitacora_observaciones ? loteActual.bitacora_observaciones : [];
+                bitacora.push({ fechaHora: fechaHoraStr, autor: usuarioLogueado, nota: `Registro editado: ${unidades} unidades, Vto: ${fechaFormateada}` });
+
+                resultado = await supabaseClient.from('lotes_vencimientos').update({
+                    producto_id: productoId, codigo_ean: ean, fecha_vencimiento: fecha,
+                    cantidad_unidades: unidades, accion_realizada: selectedAccionValue,
+                    bitacora_observaciones: bitacora, ...(fotoUrl && { foto_url: fotoUrl })
+                }).eq('id', loteEditandoId);
+            } else {
+                resultado = await supabaseClient.from('lotes_vencimientos').insert([{
+                    tienda_id: tiendaIdGlobal, producto_id: productoId, codigo_ean: ean,
+                    fecha_vencimiento: fecha, cantidad_unidades: unidades, accion_realizada: selectedAccionValue,
+                    creado_por: usuarioLogueado, foto_url: fotoUrl,
+                    bitacora_observaciones: [{ fechaHora: fechaHoraStr, autor: usuarioLogueado, nota: `Registro inicial: ${unidades} unidades` }]
+                }]);
+            }
+
+            if (resultado.error) {
+                alert('Error en Supabase: ' + resultado.error.message);
+            } else {
+                alert(loteEditandoId ? '¡Registro actualizado con éxito!' : '¡Registro guardado con éxito!');
+                limpiarFormulario();
+                cambiarTab('cargas');
+            }
+        }
+
+        async function eliminarLote(id) {
+            if (!confirm('¿Estás seguro de que deseas eliminar este registro?')) return;
+            const { error } = await supabaseClient.from('lotes_vencimientos').delete().eq('id', id);
+            if (error) alert('Error al eliminar: ' + error.message);
+            else cargarMisCargas();
+        }
+
+        function limpiarFormulario() {
+            document.getElementById('eanInput').value = '';
+            document.getElementById('descInput').value = '';
+            document.getElementById('fechaVtoInput').value = '';
+            document.getElementById('unidadesInput').value = '1';
+            document.getElementById('selectedAccionText').textContent = 'Seleccionar...';
+            selectedAccionValue = "SIN ACCIONAR";
+            document.getElementById('fotoLoteRepo').value = '';
+            document.getElementById('textoArchivoSeleccionado').textContent = 'Ningún archivo seleccionado';
+            loteEditandoId = null;
+            const btnSave = document.querySelector('.btn-save');
+            if (btnSave) btnSave.textContent = "Save ✓";
+        }
+
+        function abrirModalAcciones() { document.getElementById('modalAcciones').style.display = 'flex'; }
+        function cerrarModalAcciones() { document.getElementById('modalAcciones').style.display = 'none'; }
+        function renderAcciones(opciones) {
+            const container = document.getElementById('accionesList');
+            container.innerHTML = opciones.map(acc => `<div style="padding: 10px 0; border-bottom: 1px solid #1f2937; cursor: pointer;" onclick="seleccionarAccion('${acc}')">${acc}</div>`).join('');
+        }
+        function filtrarAcciones() {
+            const q = document.getElementById('searchAccion').value.toLowerCase();
+            renderAcciones(listaAcciones.filter(a => a.toLowerCase().includes(q)));
+        }
+        function seleccionarAccion(val) {
+            selectedAccionValue = val;
+            document.getElementById('selectedAccionText').textContent = val;
+            cerrarModalAcciones();
+        }
+
+        function abrirCamaraScanner() {
+            document.getElementById('scannerModal').style.display = 'flex';
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, qrMsg => {
+                document.getElementById('eanInput').value = qrMsg;
+                cerrarCamaraScanner();
+                buscarDescripcionPorEan();
+            }).catch(() => cerrarCamaraScanner());
+        }
+        function cerrarCamaraScanner() {
+            if (html5QrCode) html5QrCode.stop().then(() => document.getElementById('scannerModal').style.display = 'none');
+            else document.getElementById('scannerModal').style.display = 'none';
+        }
+
+        async function abrirCamaraDirecta() {
+            const modal = document.getElementById('modalCamara');
+            modal.style.display = 'flex';
+            streamCamara = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            document.getElementById('videoCamara').srcObject = streamCamara;
+        }
+        function cerrarCamaraDirecta() {
+            document.getElementById('modalCamara').style.display = 'none';
+            if (streamCamara) streamCamara.getTracks().forEach(t => t.stop());
+        }
+        function sacarFotoModal() {
+            const video = document.getElementById('videoCamara');
+            const canvas = document.getElementById('canvasCamara');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            canvas.toBlob(blob => {
+                const file = new File([blob], "foto_lote.jpg", { type: "image/jpeg" });
+                const dt = new DataTransfer(); dt.items.add(file);
+                document.getElementById('fotoLoteRepo').files = dt.files;
+                document.getElementById('textoArchivoSeleccionado').textContent = `✔ Foto capturada con éxito`;
+                document.getElementById('textoArchivoSeleccionado').style.color = '#10b981';
+                cerrarCamaraDirecta();
+            }, 'image/jpeg');
+        }
+
+        function cerrarSesion() {
+            if (confirm('¿Deseas cerrar sesión?')) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

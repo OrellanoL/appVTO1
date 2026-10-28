@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración - Carrefour Express</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col">
+
+    <!-- Barra Superior -->
+    <header class="bg-blue-900 text-white shadow-md px-6 py-4 flex justify-between items-center">
+        <div>
+            <span class="bg-red-600 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">Panel Admin</span>
+            <h1 id="tituloSucursal" class="text-lg font-bold mt-1">Cargando sucursal...</h1>
+        </div>
+        <button onclick="cerrarSesion()" class="bg-red-600 hover:bg-red-700 text-xs font-bold px-4 py-2 rounded-lg transition uppercase tracking-wider">
+            Cerrar Sesión
+        </button>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- SECCIÓN 1: GESTIÓN DE REPOSITORES (Desplegable) -->
+        <details class="bg-white rounded-xl shadow-md p-6 border border-slate-200 group">
+            <summary class="text-base font-bold text-slate-800 uppercase tracking-wide cursor-pointer flex items-center justify-between">
+                <span class="flex items-center">
+                    <span class="bg-blue-100 text-blue-800 p-2 rounded-lg mr-2">👥</span> Gestión de Repositores (DNI y PIN)
+                </span>
+                <span class="text-xs text-slate-400 group-open:rotate-180 transition transform">▼</span>
+            </summary>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nombre</label>
+                        <input type="text" id="nombreRepo" placeholder="Ej: Juan" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Apellido</label>
+                        <input type="text" id="apellidoRepo" placeholder="Ej: Pérez" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">DNI</label>
+                        <input type="text" id="dniRepo" placeholder="Ej: 35123456" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">PIN (4 dígitos)</label>
+                        <input type="password" id="pinRepo" maxlength="4" placeholder="••••" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                </div>
+                <button onclick="agregarRepositor()" 
+                    class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 px-4 rounded-lg text-sm uppercase transition shadow">
+                    Registrar Nuevo Repositor
+                </button>
+
+                <div class="overflow-x-auto mt-4">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700 uppercase text-xs tracking-wider border-b">
+                                <th class="p-3">Nombre y Apellido</th>
+                                <th class="p-3">DNI (Usuario)</th>
+                                <th class="p-3">PIN</th>
+                                <th class="p-3">Estado</th>
+                                <th class="p-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaRepositores">
+                            <tr><td colspan="5" class="p-4 text-center text-slate-400">Cargando personal...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+
+        <!-- SECCIÓN 2: CATÁLOGOS E INVENTARIO (Desplegable) -->
+        <details class="bg-white rounded-xl shadow-md p-6 border border-slate-200 group">
+            <summary class="text-base font-bold text-slate-800 uppercase tracking-wide cursor-pointer flex items-center justify-between">
+                <span class="flex items-center">
+                    <span class="bg-blue-100 text-blue-800 p-2 rounded-lg mr-2">📦</span> Catálogo e Inventario de Tienda
+                </span>
+                <span class="text-xs text-slate-400 group-open:rotate-180 transition transform">▼</span>
+            </summary>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 space-y-6">
+                <!-- Carga CSV -->
+                <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                    <h3 class="text-xs font-bold text-blue-900 uppercase tracking-wider mb-2">Importar / Actualizar Catálogo mediante Archivo CSV</h3>
+                    <p class="text-xs text-slate-600 mb-3">Columnas requeridas: <code>EAN, DESCRIPCION, Sector, Sección, Grupo, Familia, SubFamilia</code>[cite: 6].</p>
+                    <div class="flex flex-col sm:flex-row items-center gap-3">
+                        <input type="file" id="csvFile" accept=".csv" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-700 file:text-white hover:file:bg-blue-800 cursor:pointer">
+                        <button id="btnUpload" onclick="procesarCSV()" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-6 rounded-lg text-xs uppercase tracking-wider transition shadow whitespace-nowrap">
+                            Subir / Actualizar CSV
+                        </button>
+                    </div>
+                    <div class="text-xs font-bold mt-2 text-blue-700" id="statusText"></div>
+                </div>
+
+                <!-- Alta Individual -->
+                <details class="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <summary class="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">➕ Agregar Producto Individual Manualmente</summary>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Código EAN (Barras):</label>
+                            <input type="text" id="ean" placeholder="Ej: 7791234567890" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Descripción:</label>
+                            <input type="text" id="descripcion" placeholder="Ej: LECHE DESCARTABLE 1L" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Sector:</label>
+                            <input type="text" id="sector" placeholder="Ej: FRESCOS" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Sección:</label>
+                            <input type="text" id="seccion" placeholder="Ej: LACTEOS" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Grupo:</label>
+                            <input type="text" id="grupo" placeholder="Ej: LECHES" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">Familia:</label>
+                            <input type="text" id="familia" placeholder="Ej: FLUIDAS" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block font-semibold text-xs text-slate-600 uppercase mb-1">SubFamilia:</label>
+                        <input type="text" id="subfamilia" placeholder="Ej: DESCARTABLE" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+                    </div>
+                    <button onclick="guardarProductoIndividual()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 px-4 rounded-lg transition uppercase text-xs tracking-wider shadow mt-4">
+                        Guardar Producto en el Catálogo
+                    </button>
+                    <div class="text-center font-bold text-xs mt-2" id="statusMsg"></div>
+                </details>
+
+                <!-- Input de Fotografía para el Administrador -->
+<div class="mt-4">
+    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Fotografía del Lote / Comprobante (Opcional)</label>
+    <input type="file" id="fotoLoteAdmin" accept="image/*" capture="environment" 
+        class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-700 file:text-white hover:file:bg-blue-800 cursor:pointer border border-slate-200 p-2 rounded-lg bg-white">
+    <span class="text-[11px] text-slate-400 mt-1 block">Permite sacar una foto con la cámara del celular o seleccionar un archivo.</span>
+</div>
+                <!-- Listado Catálogo -->
+                <div>
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Listado del Catálogo Vigente</h3>
+                        <input type="text" id="buscarProductoInput" onkeyup="filtrarProductos()" placeholder="Buscar por EAN o descripción..." 
+                            class="w-full sm:w-72 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-slate-100 text-slate-700 uppercase text-xs tracking-wider sticky top-0">
+                                <tr>
+                                    <th class="p-3">EAN</th>
+                                    <th class="p-3">Descripción</th>
+                                    <th class="p-3">Sector / Sección</th>
+                                    <th class="p-3 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaProductos">
+                               <tr><td colspan="4" class="p-4 text-center text-slate-400">Cargando catálogo...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- SECCIÓN 3: CARGA DE VENCIMIENTOS Y LISTADO CON BITÁCORA (Desplegable) -->
+        <details class="bg-white rounded-xl shadow-md p-6 border border-slate-200 group" open>
+            <summary class="text-base font-bold text-slate-800 uppercase tracking-wide cursor-pointer flex items-center justify-between">
+                <span class="flex items-center">
+                    <span class="bg-blue-100 text-blue-800 p-2 rounded-lg mr-2">⏱️</span> Registro de Vencimientos y Bitácora Admin
+                </span>
+                <span class="text-xs text-slate-400 group-open:rotate-180 transition transform">▼</span>
+            </summary>
+
+            <div class="mt-6 pt-4 border-t border-slate-100 space-y-6">
+                
+                <!-- Formulario de Carga Oficial -->
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Cargar Nuevo Lote de Vencimiento</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Código EAN</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="vtoEanAdmin" placeholder="Ej: 7791720036990" onblur="buscarDescripcionEan()" onkeydown="if(event.key==='Enter') buscarDescripcionEan()"
+                                    class="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono">
+                                <button type="button" onclick="alert('Función de cámara / escáner activo')" class="bg-slate-200 hover:bg-slate-300 px-3.5 rounded-lg text-slate-700 font-bold flex items-center justify-center" title="Escanear con cámara">
+                                    📷
+                                </button>
+                            </div>
+                            <span id="descAutocompletada" class="text-xs font-bold text-blue-700 mt-1 block">Esperando código EAN...</span>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Fecha de Vencimiento</label>
+                            <input type="date" id="vtoFechaAdmin" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Cantidad de Unidades</label>
+                            <input type="number" id="vtoCantidadAdmin" placeholder="Ej: 5" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Acción Realizada</label>
+                            <select id="vtoAccionAdmin" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                                <option value="SIN ACCIONAR">SIN ACCIONAR</option>
+                                <option value="Cargado en FORMULARIO P.A.S">Cargado en FORMULARIO P.A.S</option>
+                                <option value="Cargado en ULTIMA MILLA">Cargado en ULTIMA MILLA</option>
+                                <option value="Cargado en PCH">Cargado en PCH</option>
+                                <option value="Cargado en FORM de ACCIONES ESPECIALES">Cargado en FORM de ACCIONES ESPECIALES</option>
+                                <option value="Cargado en FORM de PFT">Cargado en FORM de PFT</option>
+                                <option value="Cargado en FORM CARNES">Cargado en FORM CARNES</option>
+                                <option value="Cargado para DONACIÓN">Cargado para DONACIÓN</option>
+                                <option value="Uso de CUPONES">Uso de CUPONES</option>
+                                <option value="Transferencia de Tienda">Transferencia de Tienda</option>
+                            </select>
+                        </div>
+                    </div>
+ <!-- FOTOGRAFÍA DEL LOTE (Panel Admin - Con botones Archivo y Cámara) -->
+        <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Fotografía del Lote (Opcional)</label>
+            
+            <!-- Input file oculto -->
+            <input type="file" id="fotoLoteAdmin" accept="image/*" style="display: none;" onchange="actualizarNombreArchivoAdmin(this)">
+            
+            <!-- Botones personalizados estilo Admin -->
+            <div class="flex gap-3 mb-1">
+                <button type="button" onclick="document.getElementById('fotoLoteAdmin').click();" 
+                    class="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 px-4 rounded-lg text-xs uppercase tracking-wider transition shadow flex items-center justify-center gap-2">
+                    📁 Archivo
+                </button>
+                <button type="button" onclick="abrirCamaraAdminDirecta()" 
+                    class="flex-1 bg-purple-700 hover:bg-purple-800 text-white font-bold py-2.5 px-4 rounded-lg text-xs uppercase tracking-wider transition shadow flex items-center justify-center gap-2">
+                    📷 Cámara
+                </button>
+            </div>
+            <span id="textoArchivoAdmin" class="text-[11px] text-slate-500 block text-center mt-1">Ningún archivo seleccionado</span>
+        </div>
+
+                    
+                    <button onclick="guardarLoteAdminOficial()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg text-sm uppercase transition shadow tracking-wider">
+                        Guardar Lote de Vencimiento
+                    </button>
+                    <div class="text-center font-bold text-xs mt-2" id="vtoStatusMsgAdmin"></div>
+                </div>
+
+                <!-- Tabla de Listado de Lotes Registrados en la Sucursal -->
+                <div>
+                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Listado de Lotes Registrados (Hacer clic en Notes para Bitácora)</h3>
+                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-slate-100 text-slate-700 uppercase text-xs tracking-wider sticky top-0">
+                                <tr>
+                                    <th class="p-3">EAN / Producto</th>
+                                    <th class="p-3">Vencimiento</th>
+                                    <th class="p-3">Cant.</th>
+                                    <th class="p-3">Cargado Por</th>
+                                    <th class="p-3">Acción</th>
+                                    <th class="p-3 text-center">Bitácora</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaLotesAdmin">
+                                <tr><td colspan="6" class="p-4 text-center text-slate-400">Cargando lotes...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+    </main>
+
+   
+    
+           <!-- MODAL DE BITÁCORA, OBSERVACIONES Y FOTO -->
+    <div id="modalBitacora" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base uppercase">Bitácora y Detalle del Lote</h3>
+                    <p id="modalEanProducto" class="text-xs font-mono text-slate-500"></p>
+                </div>
+                <button onclick="cerrarModalBitacora()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+
+            <!-- SECCIÓN DE FOTO ADJUNTA -->
+            <div id="seccionFotoModal" class="hidden bg-slate-50 p-3 rounded-lg border border-slate-200 text-center space-y-2">
+                <label class="block text-xs font-bold text-slate-600 uppercase">Fotografía del Lote Registrada</label>
+                <div class="flex justify-center">
+                    <img id="imgLoteModal" src="" alt="Foto del lote" class="max-h-40 rounded-lg border shadow-sm object-contain">
+                </div>
+                <div>
+                    <a id="btnDescargarFoto" href="" target="_blank" download class="inline-block bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-1.5 px-4 rounded-lg uppercase tracking-wider transition">
+                        📥 Descargar Imagen
+                    </a>
+                </div>
+            </div>
+
+            <!-- Historial de Anotaciones -->
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-slate-600 uppercase">Historial de Gestiones y Notas</label>
+                <div id="historialNotasContainer" class="max-h-36 overflow-y-auto bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-xs">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Input para nueva observación -->
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-slate-600 uppercase">Añadir Nueva Observación</label>
+                <textarea id="nuevaAnotacionInput" rows="2" placeholder="Ej: Se pidió rebaja de precio / Se envió mail a responsable..." 
+                    class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="cerrarModalBitacora()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg uppercase">
+                    Cerrar
+                </button>
+                <button onclick="guardarAnotacionBitacora()" class="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg uppercase shadow">
+                    Guardar Nota con Fecha/Hora
+                </button>
+            </div>
+        </div>
+    
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://dofeahjuerqgjyxhnmdm.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ArCel3W6N_-D0QZG10MlgA_jM2IcnuH';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const tiendaId = localStorage.getItem('tienda_id');
+        const codigoSucursal = localStorage.getItem('codigo_sucursal');
+        const nombreSucursal = localStorage.getItem('nombre_sucursal');
+
+        let listaProductosGlobal = [];
+        let productoDetectadoId = null;
+        let loteSeleccionadoId = null;
+        let bitacoraActual = [];
+
+        if (!tiendaId) {
+            window.location.href = 'login.html';
+        } else {
+            document.getElementById('tituloSucursal').textContent = `Sucursal ${codigoSucursal} - ${nombreSucursal || ''}`;
+            cargarRepositores();
+            cargarProductos();
+            cargarLotesAdmin();
+        }
+
+        // --- REPOSITORES ---
+        async function cargarRepositores() {
+            const { data, error } = await supabaseClient
+                .from('usuarios_tienda')
+                .select('*')
+                .eq('tienda_id', tiendaId)
+                .order('created_at', { ascending: false });
+
+            const tbody = document.getElementById('tablaRepositores');
+            if (error || !data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay repositores registrados.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.map(repo => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-3 font-medium text-slate-800">${repo.nombre} ${repo.apellido}</td>
+                    <td class="p-3 text-slate-600 font-mono">${repo.dni}</td>
+                    <td class="p-3 text-slate-600 font-mono">••••</td>
+                    <td class="p-3">
+                        <span class="px-2.5 py-1 text-xs font-bold rounded-full ${repo.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            ${repo.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                    </td>
+                    <td class="p-3 text-center space-x-2">
+                        <button onclick="cambiarEstadoRepositor('${repo.id}', ${!repo.activo})" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-2.5 py-1 rounded">
+                            ${repo.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button onclick="eliminarRepositor('${repo.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-bold px-2.5 py-1 rounded">
+                            Eliminar
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function agregarRepositor() {
+            const nombre = document.getElementById('nombreRepo').value.trim();
+            const apellido = document.getElementById('apellidoRepo').value.trim();
+            const dni = document.getElementById('dniRepo').value.trim();
+            const pin = document.getElementById('pinRepo').value.trim();
+
+            if (!nombre || !apellido || !dni || pin.length !== 4) {
+                alert('Completá todos los campos y asegurate de que el PIN tenga 4 dígitos.');
+                return;
+            }
+
+            const { error } = await supabaseClient.from('usuarios_tienda').insert([{
+                tienda_id: tiendaId,
+                nombre: nombre,
+                apellido: apellido,
+                dni: dni,
+                pin: pin,
+                rol: 'repositor',
+                activo: true
+            }]);
+
+            if (error) {
+                alert('Error al registrar repositor (DNI duplicado): ' + error.message);
+            } else {
+                alert('¡Repositor registrado con éxito!');
+                document.getElementById('nombreRepo').value = '';
+                document.getElementById('apellidoRepo').value = '';
+                document.getElementById('dniRepo').value = '';
+                document.getElementById('pinRepo').value = '';
+                cargarRepositores();
+            }
+        }
+
+        async function cambiarEstadoRepositor(id, nuevoEstado) {
+            const { error } = await supabaseClient.from('usuarios_tienda').update({ activo: nuevoEstado }).eq('id', id);
+            if (!error) cargarRepositores();
+        }
+
+        async function eliminarRepositor(id) {
+            if (confirm('¿Eliminar este repositor?')) {
+                const { error } = await supabaseClient.from('usuarios_tienda').delete().eq('id', id);
+                if (!error) cargarRepositores();
+            }
+        }
+
+        // --- CATÁLOGO Y CSV ---
+        async function cargarProductos() {
+            const { data, error } = await supabaseClient
+                .from('productos')
+                .select('*')
+                .eq('tienda_id', tiendaId)
+                .order('descripcion', { ascending: true });
+
+            const tbody = document.getElementById('tablaProductos');
+            if (error || !data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">No hay productos cargados en esta sucursal.</td></tr>`;
+                listaProductosGlobal = [];
+                return;
+            }
+
+            listaProductosGlobal = data;
+            renderizarTablaProductos(data);
+        }
+
+        function renderizarTablaProductos(productos) {
+            const tbody = document.getElementById('tablaProductos');
+            tbody.innerHTML = productos.map(prod => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-3 font-mono text-xs text-slate-700">${prod.codigo_ean}</td>
+                    <td class="p-3 font-medium text-slate-800">${prod.descripcion}</td>
+                    <td class="p-3 text-xs text-slate-500">${prod.sector || '-'} / ${prod.seccion || '-'}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="eliminarProducto('${prod.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-bold px-2.5 py-1 rounded">
+                            Eliminar
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filtrarProductos() {
+            const texto = document.getElementById('buscarProductoInput').value.toLowerCase();
+            const filtrados = listaProductosGlobal.filter(p => 
+                p.codigo_ean.toLowerCase().includes(texto) || 
+                p.descripcion.toLowerCase().includes(texto)
+            );
+            renderizarTablaProductos(filtrados);
+        }
+
+        async function guardarProductoIndividual() {
+            const ean = document.getElementById('ean').value.trim();
+            const descripcion = document.getElementById('descripcion').value.trim();
+            const sector = document.getElementById('sector').value.trim();
+            const seccion = document.getElementById('seccion').value.trim();
+            const grupo = document.getElementById('grupo').value.trim();
+            const familia = document.getElementById('familia').value.trim();
+            const subfamilia = document.getElementById('subfamilia').value.trim();
+            const msg = document.getElementById('statusMsg');
+
+            if (!ean || !descripcion) {
+                alert('El código EAN y la Descripción son obligatorios.');
+                return;
+            }
+
+            msg.style.color = '#0284c7';
+            msg.textContent = 'Guardando producto...';
+
+            const { error } = await supabaseClient.from('productos').insert([{
+                tienda_id: tiendaId,
+                codigo_ean: ean,
+                descripcion: descripcion,
+                sector: sector || null,
+                seccion: seccion || null,
+                grupo: grupo || null,
+                familia: familia || null,
+                subfamilia: subfamilia || null
+            }]);
+
+            if (error) {
+                msg.style.color = '#dc2626';
+                msg.textContent = 'Error: ' + error.message;
+            } else {
+                msg.style.color = '#16a34a';
+                msg.textContent = '¡Producto agregado con éxito!';
+                document.getElementById('ean').value = '';
+                document.getElementById('descripcion').value = '';
+                document.getElementById('sector').value = '';
+                document.getElementById('seccion').value = '';
+                document.getElementById('grupo').value = '';
+                document.getElementById('familia').value = '';
+                document.getElementById('subfamilia').value = '';
+                cargarProductos();
+            }
+        }
+
+        async function procesarCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const status = document.getElementById('statusText');
+            const btn = document.getElementById('btnUpload');
+
+            if (!fileInput.files.length) {
+                alert('Por favor seleccioná un archivo CSV');
+                return;
+            }
+
+            btn.disabled = true;
+            status.textContent = 'Leyendo archivo CSV...';
+
+            Papa.parse(fileInput.files[0], {
+                header: true,
+                skipEmptyLines: true,
+                complete: async function(results) {
+                    const filas = results.data;
+                    status.textContent = `Procesando ${filas.length} productos...`;
+
+                    const productosParaInsertar = filas.map(f => ({
+                        tienda_id: tiendaId,
+                        codigo_ean: String(f.EAN || f.codigo_ean || '').trim(),
+                        descripcion: String(f.DESCRIPCION || f.descripcion || '').trim(),
+                        sector: f.Sector || f.sector || null,
+                        seccion: f.Sección || f.seccion || null,
+                        grupo: f.Grupo || f.grupo || null,
+                        familia: f.Familia || f.familia || null,
+                        subfamilia: f.SubFamilia || f.subfamilia || null
+                    })).filter(p => p.codigo_ean && p.descripcion);
+
+                    const chunkSize = 500;
+                    for (let i = 0; i < productosParaInsertar.length; i += chunkSize) {
+                        const chunk = productosParaInsertar.slice(i, i + chunkSize);
+                        const { error } = await supabaseClient.from('productos').insert(chunk);
+                        
+                        if (error) {
+                            console.error('Error insertando lote:', error);
+                            status.textContent = `Error en el bloque ${i}: ${error.message}`;
+                            btn.disabled = false;
+                            return;
+                        }
+                        status.textContent = `Cargados ${Math.min(i + chunkSize, productosParaInsertar.length)} de ${productosParaInsertar.length} productos...`;
+                    }
+
+                    status.textContent = '¡Catálogo cargado y actualizado con éxito!';
+                    btn.disabled = false;
+                    fileInput.value = '';
+                    cargarProductos();
+                }
+            });
+        }
+
+        async function eliminarProducto(id) {
+            if (confirm('¿Estás seguro de eliminar este producto del catálogo?')) {
+                const { error } = await supabaseClient.from('productos').delete().eq('id', id);
+                if (error) {
+                    alert('Error al eliminar: ' + error.message);
+                } else {
+                    cargarProductos();
+                }
+            }
+        }
+
+        let streamCamaraAdmin = null;
+
+        function actualizarNombreArchivoAdmin(input) {
+            const textoSpan = document.getElementById('textoArchivoAdmin');
+            if (input.files && input.files.length > 0) {
+                textoSpan.textContent = `✔ Seleccionado: ${input.files[0].name}`;
+                textoSpan.style.color = '#16a34a';
+            } else {
+                textoSpan.textContent = 'Ningún archivo seleccionado';
+                textoSpan.style.color = '#64748b';
+            }
+        }
+
+        async function abrirCamaraAdminDirecta() {
+            // Reutilizamos el modal de cámara o creamos uno idéntico en admin si no lo tenías
+            const modal = document.getElementById('modalCamaraAdmin');
+            if (!modal) {
+                crearModalCamaraAdmin();
+            }
+            document.getElementById('modalCamaraAdmin').style.display = 'flex';
+            const video = document.getElementById('videoCamaraAdmin');
+            try {
+                streamCamaraAdmin = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                video.srcObject = streamCamaraAdmin;
+            } catch (err) {
+                alert('No se pudo acceder a la cámara. Usá la opción "Archivo".');
+                cerrarCamaraAdminDirecta();
+            }
+        }
+
+        function crearModalCamaraAdmin() {
+            const div = document.createElement('div');
+            div.id = 'modalCamaraAdmin';
+            div.style.cssText = 'display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:300; flex-direction:column; align-items:center; justify-content:center; padding:20px;';
+            div.innerHTML = `
+                <video id="videoCamaraAdmin" autoplay playsinline style="width:100%; max-width:400px; border-radius:8px; background:#000;"></video>
+                <canvas id="canvasCamaraAdmin" style="display:none;"></canvas>
+                <div style="display:flex; gap:12px; margin-top:16px;">
+                    <button type="button" onclick="capturarFotoAdmin()" style="background:#16a34a; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">📸 Capturar</button>
+                    <button type="button" onclick="cerrarCamaraAdminDirecta()" style="background:#dc2626; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">✕ Cancelar</button>
+                </div>
+            `;
+            document.body.appendChild(div);
+        }
+
+        function cerrarCamaraAdminDirecta() {
+            const modal = document.getElementById('modalCamaraAdmin');
+            if (modal) modal.style.display = 'none';
+            if (streamCamaraAdmin) {
+                streamCamaraAdmin.getTracks().forEach(track => track.stop());
+                streamCamaraAdmin = null;
+            }
+        }
+
+        function capturarFotoAdmin() {
+            const video = document.getElementById('videoCamaraAdmin');
+            const canvas = document.getElementById('canvasCamaraAdmin');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                const archivo = new File([blob], "foto_admin.jpg", { type: "image/jpeg" });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(archivo);
+                document.getElementById('fotoLoteAdmin').files = dataTransfer.files;
+
+                document.getElementById('textoArchivoAdmin').textContent = `✔ Foto capturada con éxito`;
+                document.getElementById('textoArchivoAdmin').style.color = '#16a34a';
+                cerrarCamaraAdminDirecta();
+            }, 'image/jpeg');
+        }
+
+        // --- VENCIMIENTOS Y AUTOCOMPLETADO EAN ---
+        async function buscarDescripcionEan() {
+            const eanInput = document.getElementById('vtoEanAdmin');
+            const descSpan = document.getElementById('descAutocompletada');
+            const ean = eanInput.value.trim();
+
+            if (!ean) {
+                descSpan.textContent = 'Esperando código EAN...';
+                descSpan.style.color = '#0284c7';
+                productoDetectadoId = null;
+                return;
+            }
+
+            descSpan.textContent = 'Buscando en catálogo...';
+            descSpan.style.color = '#0284c7';
+
+            // 1. Intentar buscar primero vinculado a la tienda actual
+            let { data, error } = await supabaseClient
+                .from('productos')
+                .select('id, descripcion')
+                .eq('codigo_ean', ean)
+                .eq('tienda_id', tiendaId)
+                .maybeSingle();
+
+            // 2. Si no está en la tienda actual, buscar de forma global por EAN
+            if (!data) {
+                const { data: globalData, error: globalError } = await supabaseClient
+                    .from('productos')
+                    .select('id, descripcion')
+                    .eq('codigo_ean', ean)
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (globalData) {
+                    data = globalData;
+                }
+            }
+
+            if (data) {
+                descSpan.textContent = `✔ ${data.descripcion}`;
+                descSpan.style.color = '#16a34a'; // Verde éxito
+                productoDetectadoId = data.id;
+            } else {
+                descSpan.textContent = '⚠ EAN no encontrado en el catálogo (se guardará igual)';
+                descSpan.style.color = '#d97706'; // Naranja advertencia
+                productoDetectadoId = null;
+            }
+        }
+        async function cargarLotesAdmin() {
+            const { data, error } = await supabaseClient
+                .from('lotes_vencimientos')
+                .select('*, productos(descripcion)')
+                .eq('tienda_id', tiendaId)
+                .order('fecha_vencimiento', { ascending: true });
+
+            const tbody = document.getElementById('tablaLotesAdmin');
+            if (error || !data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">No hay lotes registrados.</td></tr>`;
+                return;
+            }
+            const fotoInput = document.getElementById('fotoLoteAdmin');
+let fotoUrl = null;
+if (fotoInput.files.length > 0) {
+    fotoUrl = 'Adjunto cargado'; // O la lógica para subirlo a Supabase Storage
+}
+
+            tbody.innerHTML = data.map(lote => {
+                const desc = lote.productos?.descripcion || 'Sin descripción en catálogo';
+                const notasCount = Array.isArray(lote.bitacora_observaciones) ? lote.bitacora_observaciones.length : 0;
+
+                return `
+                    <tr class="border-b hover:bg-slate-50">
+                        <td class="p-3">
+                            <div class="font-bold text-slate-800 text-xs">${desc}</div>
+                            <div class="font-mono text-[11px] text-slate-400">${lote.codigo_ean}</div>
+                        </td>
+                        <td class="p-3 font-mono text-xs font-bold text-red-600">${lote.fecha_vencimiento}</td>
+                        <td class="p-3 font-bold text-slate-700">${lote.cantidad_unidades} u.</td>
+                        <td class="p-3 text-xs text-slate-600">${lote.creado_por || 'Repositor'}</td>
+                        <td class="p-3 text-xs text-slate-600">${lote.accion_realizada || '-'}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="abrirModalBitacora('${lote.id}', '${lote.codigo_ean}', '${desc.replace(/'/g, "\\'")}', '${encodeURIComponent(JSON.stringify(lote.bitacora_observaciones || []))}', '${lote.foto_url}')" 
+    class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold px-3 py-1.5 rounded-lg flex items-center justify-center gap-1 mx-auto">
+    📝 Notes (${notasCount})
+</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function guardarLoteAdminOficial() {
+            const ean = document.getElementById('vtoEanAdmin').value.trim();
+            const fecha = document.getElementById('vtoFechaAdmin').value;
+            const cantidad = parseInt(document.getElementById('vtoCantidadAdmin').value);
+            const accion = document.getElementById('vtoAccionAdmin').value;
+            const fotoInput = document.getElementById('fotoLoteAdmin');
+            const msg = document.getElementById('vtoStatusMsgAdmin');
+
+            if (!ean || !fecha || isNaN(cantidad) || cantidad <= 0) {
+                alert('Completá el código EAN, la fecha de vencimiento y una cantidad válida.');
+                return;
+            }
+
+            msg.style.color = '#0284c7';
+            msg.textContent = 'Subiendo datos y foto...';
+
+            let fotoUrl = null;
+
+            // Si seleccionó o sacó una foto, la subimos a Supabase Storage
+            if (fotoInput.files.length > 0) {
+                const archivo = fotoInput.files[0];
+                const nombreArchivo = `${tiendaId}_${Date.now()}_${archivo.name}`;
+                
+                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                    .from('fotos_lotes')
+                    .upload(nombreArchivo, archivo);
+
+                if (uploadError) {
+                    alert('Error al subir la foto: ' + uploadError.message);
+                    msg.textContent = '';
+                    return;
+                }
+
+                // Obtener URL pública de la foto
+                const { data: publicUrlData } = supabaseClient.storage
+                    .from('fotos_lotes')
+                    .getPublicUrl(nombreArchivo);
+
+                fotoUrl = publicUrlData.publicUrl;
+            }
+
+            const ahora = new Date();
+            const fechaHoraStr = ahora.toLocaleString('es-AR', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+
+            const { error } = await supabaseClient.from('lotes_vencimientos').insert([{
+                tienda_id: tiendaId,
+                producto_id: productoDetectadoId,
+                codigo_ean: ean,
+                fecha_vencimiento: fecha,
+                cantidad_unidades: cantidad,
+                accion_realizada: accion,
+                creado_por: `Administrador (${codigoSucursal})`,
+                foto_url: fotoUrl, // URL en la nube de Supabase
+                bitacora_observaciones: [{
+                    fechaHora: fechaHoraStr,
+                    autor: `Admin (${codigoSucursal})`,
+                    nota: `Lote registrado con acción: ${accion}`
+                }]
+            }]);
+
+            if (error) {
+                msg.style.color = '#dc2626';
+                msg.textContent = 'Error al registrar: ' + error.message;
+            } else {
+                msg.style.color = '#16a34a';
+                msg.textContent = '¡Lote y foto guardados con éxito!';
+                
+                document.getElementById('vtoEanAdmin').value = '';
+                document.getElementById('vtoFechaAdmin').value = '';
+                document.getElementById('vtoCantidadAdmin').value = '';
+                document.getElementById('fotoLoteAdmin').value = '';
+                document.getElementById('textoArchivoAdmin').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('descAutocompletada').textContent = 'Esperando código EAN...';
+                productoDetectadoId = null;
+
+                cargarLotesAdmin();
+            }
+        }
+
+        // --- MODAL BITÁCORA ---
+        function abrirModalBitacora(id, ean, desc, bitacoraEncoded, fotoUrl) {
+            loteSeleccionadoId = id;
+            try {
+                bitacoraActual = JSON.parse(decodeURIComponent(bitacoraEncoded));
+            } catch (e) {
+                bitacoraActual = [];
+            }
+
+            document.getElementById('modalEanProducto').textContent = `${ean} - ${desc}`;
+            document.getElementById('nuevaAnotacionInput').value = '';
+            
+            // Manejar visualización de la foto
+            const seccionFoto = document.getElementById('seccionFotoModal');
+            const imgModal = document.getElementById('imgLoteModal');
+            const btnDescargar = document.getElementById('btnDescargarFoto');
+
+            if (fotoUrl && fotoUrl !== 'null' && fotoUrl !== 'undefined' && fotoUrl !== 'Adjunto cargado localmente') {
+                imgModal.src = fotoUrl;
+                btnDescargar.href = fotoUrl;
+                seccionFoto.classList.remove('hidden');
+            } else {
+                seccionFoto.classList.add('hidden');
+            }
+
+            renderizarHistorialModal();
+            document.getElementById('modalBitacora').classList.remove('hidden');
+        }
+        function cerrarModalBitacora() {
+            document.getElementById('modalBitacora').classList.add('hidden');
+            loteSeleccionadoId = null;
+        }
+
+        function renderizarHistorialModal() {
+            const container = document.getElementById('historialNotasContainer');
+            if (!bitacoraActual || bitacoraActual.length === 0) {
+                container.innerHTML = `<span class="text-slate-400 italic">No hay observaciones registradas para este lote.</span>`;
+                return;
+            }
+
+            container.innerHTML = bitacoraActual.map(item => `
+                <div class="bg-white p-2.5 rounded border border-slate-200 shadow-sm">
+                    <div class="font-bold text-blue-900 text-[11px] mb-0.5">📅 ${item.fechaHora} - ${item.autor || 'Admin'}</div>
+                    <div class="text-slate-700">${item.nota}</div>
+                </div>
+            `).join('');
+        }
+
+        async function guardarAnotacionBitacora() {
+            const input = document.getElementById('nuevaAnotacionInput');
+            const texto = input.value.trim();
+
+            if (!texto) {
+                alert('Escribí una observación antes de guardar.');
+                return;
+            }
+
+            const ahora = new Date();
+            const fechaHoraStr = ahora.toLocaleString('es-AR', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+
+            const nuevaNota = {
+                fechaHora: fechaHoraStr,
+                autor: `Admin (${codigoSucursal})`,
+                nota: texto
+            };
+
+            const bitacoraActualizada = [...bitacoraActual, nuevaNota];
+
+            const { error } = await supabaseClient
+                .from('lotes_vencimientos')
+                .update({ bitacora_observaciones: bitacoraActualizada })
+                .eq('id', loteSeleccionadoId);
+
+            if (error) {
+                alert('Error al guardar observación: ' + error.message);
+            } else {
+                bitacoraActual = bitacoraActualizada;
+                renderizarHistorialModal();
+                input.value = '';
+                cargarLotesAdmin();
+            }
+        }
+
+        function cerrarSesion() {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
